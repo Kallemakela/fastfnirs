@@ -102,7 +102,7 @@ clf_res = epoch_classification(
     [[123  27]
      [ 44 106]]
     
-    Class accuracies (comb):
+    Class accuracies (cross):
     Tapping/Left: 0.820
     Tapping/Right: 0.707
 
@@ -120,14 +120,14 @@ plot_evoked(epochs_dict, conditions=list(event_mapping.keys()))
 ```python
 # connecting to metadata example
 df = pd.merge(
-    pd.DataFrame(np.c_[clf_res['ind_preds'], clf_res['comb_preds'], clf_res['epoch_ids']], columns=['ind_pred', 'comb_pred', 'epoch']),
+    pd.DataFrame(np.c_[clf_res['ind_preds'], clf_res['cross_preds'], clf_res['epoch_ids']], columns=['ind_pred', 'cross_pred', 'epoch']),
     clf_res['metadata'],
     on='epoch',
 )
 
 for subject in df['subject'].unique():
-    comb_sub_acc = df[df['subject'] == subject].apply(lambda x: x['comb_pred'] == event_mapping[x['trial_type']], axis=1).mean()
-    print(f'Cross-subject accuracy for {subject} is     {comb_sub_acc:.2f}')
+    cross_sub_acc = df[df['subject'] == subject].apply(lambda x: x['cross_pred'] == event_mapping[x['trial_type']], axis=1).mean()
+    print(f'Cross-subject accuracy for {subject} is     {cross_sub_acc:.2f}')
 
 print()
 for subject in df['subject'].unique():

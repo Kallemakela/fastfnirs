@@ -209,10 +209,12 @@ def epoch_classification(
         output.append((subject, preds, y[subject], epoch_ids[subject]))
 
     ind_preds = np.concatenate([o[1] for o in output])
-    comb_preds = cross_val_predict(model, Xc, yc, n_jobs=-1, cv=LeaveOneGroupOut().split(Xc, yc, subject_ids))
+    cross_preds = cross_val_predict(model, Xc, yc, n_jobs=-1, cv=LeaveOneGroupOut().split(Xc, yc, subject_ids))
 
     if print_report:
         print(f'X.shape: {Xc.shape}, y label counts: {np.unique(yc, return_counts=True)}')
+
+        print(f'Model: {model}')
         
         print('Individual subject classification:')
         print(classification_report(yc, ind_preds, target_names=[reverse_dict(event_mapping)[c] for c in np.unique(yc)]))
@@ -225,16 +227,16 @@ def epoch_classification(
 
         print()
         print(f'Cross-subject classification:')
-        print(classification_report(yc, comb_preds, target_names=[reverse_dict(event_mapping)[c] for c in np.unique(yc)]))
-        print(confusion_matrix(yc, comb_preds))
+        print(classification_report(yc, cross_preds, target_names=[reverse_dict(event_mapping)[c] for c in np.unique(yc)]))
+        print(confusion_matrix(yc, cross_preds))
         print()
-        print('Class accuracies (comb):')
+        print('Class accuracies (cross):')
         for condition in np.unique(yc):
-            print(f'{reverse_dict(event_mapping)[condition]:5}: {np.mean(comb_preds[yc == condition] == condition):.3f}')
+            print(f'{reverse_dict(event_mapping)[condition]:5}: {np.mean(cross_preds[yc == condition] == condition):.3f}')
 
     return {
         'ind_preds': ind_preds,
-        'comb_preds': comb_preds,
+        'cross_preds': cross_preds,
         'y': yc,
         'epoch_ids': epoch_ids_c,
         'metadata': emdf,
