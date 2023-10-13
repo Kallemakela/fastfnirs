@@ -277,6 +277,7 @@ def epoch_classification(
     ch_selection : str, optional
             Channel selection. The default is 'hbo'.
     """
+    predict_cross = len(epochs_dict) > 1
     example_epochs = [*epochs_dict.values()][0]
     channels = get_channels_by_selection(example_epochs.ch_names, ch_selection)
     edf, emdf = get_epochs_dfs(epochs_dict)
@@ -310,9 +311,10 @@ def epoch_classification(
     else:
         cross_cv = LeaveOneGroupOut()
 
-    cross_preds = cross_val_predict(
-        model, Xc, yc, n_jobs=-1, cv=cross_cv.split(Xc, yc, subject_ids)
-    )
+    if predict_cross:
+        cross_preds = cross_val_predict(
+            model, Xc, yc, n_jobs=-1, cv=cross_cv.split(Xc, yc, subject_ids)
+        )
 
     if print_report:
         print(
@@ -322,12 +324,13 @@ def epoch_classification(
         print()
         print(f"Individual subject classification:")
         print_results(y, ind_preds, event2name=reverse_dict(event_mapping))
-        print(f"Cross-subject classification:")
-        print_results(y, cross_preds, event2name=reverse_dict(event_mapping))
+        if predict_cross:
+            print(f"Cross-subject classification:")
+            print_results(y, cross_preds, event2name=reverse_dict(event_mapping))
 
     return {
         "ind_preds": ind_preds,
-        "cross_preds": cross_preds,
+        "cross_preds": cross_preds if predict_cross else None,
         "y": yc,
         "epoch_ids": epoch_ids_c,
         "metadata": emdf,

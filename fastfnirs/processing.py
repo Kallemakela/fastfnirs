@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import mne
 from itertools import compress
 import warnings
@@ -173,9 +174,9 @@ def process_raw_od(
 
 def create_epochs_from_raw(
     raw,
-    events,
-    event_name_mapping,
-    event_metadata,
+    events=None,
+    event_name_mapping=None,
+    event_metadata=None,
     tmin=-5,
     tmax=12,
     reject_criteria=dict(hbo=80e-6),
@@ -215,6 +216,15 @@ def create_epochs_from_raw(
     """
     subject = raw.info["subject_info"]["his_id"]
     subject = subject if subject.startswith("sub-") else f"sub-{subject}"
+    
+    if events is None or event_name_mapping is None:
+        events, event_name_mapping = mne.events_from_annotations(
+            raw, event_id=event_name_mapping, verbose=verbose
+        )
+    
+    if event_metadata is None:
+        event_metadata = pd.DataFrame(events[:,::2], columns=["onset", "value"])
+
     event_metadata["subject"] = subject
     epochs = mne.Epochs(
         raw,
