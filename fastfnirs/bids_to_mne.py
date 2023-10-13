@@ -8,11 +8,19 @@ import mne
 from mne_bids import BIDSPath, read_raw_bids
 
 from fastfnirs.processing import create_epochs_from_raw, process_raw
-from fastfnirs.utils import get_ch_type, get_subjects, get_tasks, handle_duplicate_events
+from fastfnirs.utils import (
+    get_ch_type,
+    get_subjects,
+    get_tasks,
+    handle_duplicate_events,
+)
 
 logger = logging.getLogger(__name__)
 
-def read_bids_nirs(root_path, subject, task, ch_type=None, get_ch_names_map=None, get_montage=None):
+
+def read_bids_nirs(
+    root_path, subject, task, ch_type=None, get_ch_names_map=None, get_montage=None
+):
     """
     Reads a subject's nirs data from the BIDS dataset
     """
@@ -29,10 +37,13 @@ def read_bids_nirs(root_path, subject, task, ch_type=None, get_ch_names_map=None
             ch_map = {ch: ch_type for ch in raw.ch_names}
             raw.set_channel_types(ch_map)
         if get_ch_names_map is not None:
-            raw.rename_channels(get_ch_names_map(root_path, subject, task=task, chs=raw.info["chs"]))
+            raw.rename_channels(
+                get_ch_names_map(root_path, subject, task=task, chs=raw.info["chs"])
+            )
         if get_montage is not None:
             raw.set_montage(get_montage(root_path, subject, task))
     return raw
+
 
 def read_events_metadata(root_path, subject, task):
     """
@@ -52,7 +63,14 @@ def read_events_metadata(root_path, subject, task):
         logger.info(f"Removed {na_ix.sum()} rows with missing onset times.")
     return metadata
 
-def bids_to_mne(root_path, save_epochs_path=None, read_bids_nirs_kwargs={}, process_raw_kwargs={}, epochs_kwargs={}):
+
+def bids_to_mne(
+    root_path,
+    save_epochs_path=None,
+    read_bids_nirs_kwargs={},
+    process_raw_kwargs={},
+    epochs_kwargs={},
+):
     """
     Reads the BIDS data and creates and saves MNE objects in specified formats.
 
@@ -80,9 +98,17 @@ def bids_to_mne(root_path, save_epochs_path=None, read_bids_nirs_kwargs={}, proc
             logger.info(f"Processing subject={subject}, events={task}")
             event_metadata = read_events_metadata(root_path, subject, task=task)
             try:
-                raw_cw = read_bids_nirs(root_path, subject, task=task, ch_type=ch_type, **read_bids_nirs_kwargs)
+                raw_cw = read_bids_nirs(
+                    root_path,
+                    subject,
+                    task=task,
+                    ch_type=ch_type,
+                    **read_bids_nirs_kwargs,
+                )
             except OSError as e:
-                logger.warning(f"Failed to read {subject} {task}. File probably corrupted.")
+                logger.warning(
+                    f"Failed to read {subject} {task}. File probably corrupted."
+                )
                 print(e)
                 # see https://stackoverflow.com/a/43607837 if you want to try to read the file anyway
                 continue
