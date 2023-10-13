@@ -18,7 +18,6 @@ from sklearn.metrics import confusion_matrix, classification_report
 logger = logging.getLogger(__name__)
 
 
-# %%
 def get_epochs_dfs(epochs_dict, disable_tqdm=True):
     """
     Combines epoch data and metadata from all subjects to dataframes `epochs_df` and `epochs_metadata_df`.
@@ -41,7 +40,7 @@ def get_epochs_dfs(epochs_dict, disable_tqdm=True):
     for subject, subject_epochs in tqdm(
         list(epochs_dict.items()), disable=disable_tqdm
     ):
-        subject_edf = subject_epochs.to_data_frame()
+        subject_edf = subject_epochs.to_data_frame(verbose=False)
         subject_metadata = subject_epochs.metadata.copy()
         if "epoch" not in subject_metadata.columns:
             subject_metadata["epoch"] = subject_metadata.index
@@ -90,20 +89,22 @@ def reverse_dict(d):
     return {v: k for k, v in d.items()}
 
 
-def get_model(n_classes=None, seed=1):
-    clf = LinearDiscriminantAnalysis(
-        solver="lsqr",
-        shrinkage="auto",
-        # priors=np.array([1/n_classes]*n_classes)
-    )
-    # clf = LogisticRegression(
-    #     penalty='l2',
-    #     # C=0.25,
-    #     C=0.4,
-    #     max_iter=10000,
-    #     n_jobs=-1,
-    #     random_state=seed,
-    # )
+def get_model(model_name="lda", n_classes=None, seed=1):
+    if model_name == "lda":
+        clf = LinearDiscriminantAnalysis(
+            solver="lsqr",
+            shrinkage="auto",
+            # priors=np.array([1/n_classes]*n_classes)
+        )
+    elif model_name == "lr" or model_name == "logreg":
+        clf = LogisticRegression(
+            penalty="l2",
+            # C=0.25,
+            C=0.4,
+            max_iter=10000,
+            n_jobs=-1,
+            random_state=seed,
+        )
 
     model = Pipeline(
         [
@@ -257,6 +258,8 @@ def epoch_classification(
     n_windows=1,
     ch_selection="hbo",
     print_report=True,
+    seed=1,
+    **kwargs,
 ):
     """
     Performs subject-specific and cross-subject classification of epochs.
@@ -286,10 +289,30 @@ def epoch_classification(
     Xc = np.concatenate([*X.values()])
     yc = np.concatenate([*y.values()])
     epoch_ids_c = np.concatenate([*epoch_ids.values()])
+    subject_ids = np.concatenate(
+        [np.full(len(yi), subject) for subject, yi in y.items()]
+    )
+    if "model" in kwargs:
+        model = kwargs["model"]
+    else:
+        model = get_model(n_classes=len(np.unique(yc)), seed=seed)
 
-    model = get_model(n_classes=len(np.unique(yc)))
-    ind_preds = ind_clf(X, y, model=model)
-    cross_preds = cross_clf(X, y, model=model)
+    output = []
+    for subject in X.keys():
+        preds = cross_val_predict(
+            model, X[subject], y[subject], n_jobs=-1, cv=get_cv(y[subject], seed=seed)
+        )
+        output.append((subject, preds, y[subject], epoch_ids[subject]))
+    ind_preds = np.concatenate([o[1] for o in output])
+
+    if "cross_cv" in kwargs:
+        cross_cv = kwargs["cross_cv"]
+    else:
+        cross_cv = LeaveOneGroupOut()
+
+    cross_preds = cross_val_predict(
+        model, Xc, yc, n_jobs=-1, cv=cross_cv.split(Xc, yc, subject_ids)
+    )
 
     if print_report:
         print(
