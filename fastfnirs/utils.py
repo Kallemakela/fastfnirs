@@ -71,3 +71,6 @@ def get_ch_type(root_path):
                         f"found ch_type {ch_type} in {subject} {task} but expected {excepted_ch_type}"
                     )
     return bids_ch_type_to_mne(excepted_ch_type)
+
+def event_mapping_to_task(event_mapping):
+	return " v ".join([f'{k.split("/")[-1]}' for k,v in event_mapping.items()])
