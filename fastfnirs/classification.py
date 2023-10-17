@@ -136,7 +136,7 @@ def get_feature_names(channels, features=["MV"], n_windows=3, ch_selection="hbo"
     )
 
 
-def get_raw_dataset(edf, channels, event_mapping):
+def get_raw_dataset_from_df(edf, channels, event_mapping):
     Xr = defaultdict(list)
     y = defaultdict(list)
     epoch_ids = defaultdict(list)
@@ -152,7 +152,6 @@ def get_raw_dataset(edf, channels, event_mapping):
         y[subject] = np.array(y[subject])
         epoch_ids[subject] = np.array(epoch_ids[subject])
     return Xr, y, epoch_ids
-
 
 def extract_features_from_raw(X, features=["MV"], n_windows=3):
     Xf = defaultdict(list)
@@ -282,7 +281,7 @@ def epoch_classification(
     channels = get_channels_by_selection(example_epochs.ch_names, ch_selection)
     edf, emdf = get_epochs_dfs(epochs_dict)
 
-    Xr, y, epoch_ids = get_raw_dataset(edf, channels, event_mapping)
+    Xr, y, epoch_ids = get_raw_dataset_from_df(edf, channels, event_mapping)
     include_classes = list(event_mapping.values())
     Xr, y, epoch_ids = filter_classes(Xr, y, epoch_ids, include_classes)
     X = extract_features_from_raw(Xr, features=features, n_windows=n_windows)
@@ -300,8 +299,14 @@ def epoch_classification(
 
     output = []
     for subject in X.keys():
+        
+        if "ind_cv" in kwargs:
+            sub_cv = kwargs["ind_cv"]
+        else:
+            sub_cv = get_cv(y[subject], seed=seed)
+
         preds = cross_val_predict(
-            model, X[subject], y[subject], n_jobs=-1, cv=get_cv(y[subject], seed=seed)
+            model, X[subject], y[subject], n_jobs=-1, cv=sub_cv
         )
         output.append((subject, preds, y[subject], epoch_ids[subject]))
     ind_preds = np.concatenate([o[1] for o in output])
