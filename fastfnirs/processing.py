@@ -76,6 +76,13 @@ def interpolate_bads_nirs(inst, method="nearest", exclude=(), verbose=None):
 
     return inst
 
+def remove_short_channels(raw, min_length=0.01):
+    picks = mne.pick_types(raw.info, meg=False, fnirs=True)
+    dists = mne.preprocessing.nirs.source_detector_distances(
+        raw.info, picks=picks
+    )
+    raw.pick(picks[dists > min_length])
+    return raw
 
 def process_raw(
     raw: mne.io.Raw,
@@ -88,6 +95,8 @@ def process_raw(
     h_trans_bandwidth=0.01,
     bll_ppf=6,
     filter_length="auto",
+    filter_kwargs={},
+    remove_short=None,
     verbose=False,
 ):
     """
@@ -118,7 +127,17 @@ def process_raw(
             High cut-off frequency for the band-pass filter.
     bll_ppf : int, default 6
             PPF for the modified Beer-Lambert law.
+    filter_length : str or int, default 'auto'
+            Length of the FIR filter to use. If 'auto', the filter length is chosen based on the sampling frequency.
+    verbose : bool, default False
+            Whether to print progress.
+    remove_short_channels : float, default None
+            Remove channels with source-detector distance less than this value.
     """
+
+	
+    if remove_short is not None:
+        raw = remove_short_channels(raw, min_length=remove_short)
 
     raw = process_raw_od(
         raw,
@@ -136,6 +155,7 @@ def process_raw(
         h_trans_bandwidth=h_trans_bandwidth,
         filter_length=filter_length,
         verbose=False,
+        **filter_kwargs,
     )
     return raw
 
