@@ -300,10 +300,8 @@ def epoch_classification(
     bd.apply_ch_selection(ch_selection=ch_selection)
     Xr, y = bd.X, bd.y
 
-    print(np.concatenate(list(Xr.values())).shape)
     X = extract_features_from_raw(Xr, features=features, n_windows=n_windows)
     X = concatenate_features(X)
-    print(np.concatenate(list(X.values())).shape)
 
     Xc = np.concatenate([*X.values()])
     yc = np.concatenate([*y.values()])
