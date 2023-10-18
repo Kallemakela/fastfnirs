@@ -2,11 +2,11 @@ import mne
 import matplotlib.pyplot as plt
 
 
-def plot_evoked(epochs_dict, conditions=None):
+def plot_evoked(epochs_dict, **kwargs):
     all_epochs = mne.concatenate_epochs(list(epochs_dict.values()))
-    if conditions is None:
-        conditions = all_epochs.metadata["trial_type"].unique()
-    ch_types = ["hbo", "hbr"]
+    
+    conditions = kwargs["conditions"] if "conditions" in kwargs else all_epochs.metadata["trial_type"].unique()
+    ch_types = kwargs["ch_types"] if "ch_types" in kwargs else ["hbo", "hbr"]
 
     evoked_dict = {}
     for condition in conditions:
@@ -16,7 +16,9 @@ def plot_evoked(epochs_dict, conditions=None):
             )
             evoked_dict[f"{condition}/{ch_type}"].rename_channels(lambda x: x[:-4])
 
-    styles_dict = dict(hbr=dict(linestyle="dashed"))
+    styles_dict = {}
+    if 'hbr' in ch_types:
+        styles_dict["hbr"] = dict(linestyle="dashed")
 
     fig = mne.viz.plot_compare_evokeds(
         evoked_dict,
