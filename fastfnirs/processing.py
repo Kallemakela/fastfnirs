@@ -76,13 +76,13 @@ def interpolate_bads_nirs(inst, method="nearest", exclude=(), verbose=None):
 
     return inst
 
+
 def remove_short_channels(raw, min_length=0.01):
     picks = mne.pick_types(raw.info, meg=False, fnirs=True)
-    dists = mne.preprocessing.nirs.source_detector_distances(
-        raw.info, picks=picks
-    )
+    dists = mne.preprocessing.nirs.source_detector_distances(raw.info, picks=picks)
     raw.pick(picks[dists > min_length])
     return raw
+
 
 def process_raw(
     raw: mne.io.Raw,
@@ -135,7 +135,6 @@ def process_raw(
             Remove channels with source-detector distance less than this value.
     """
 
-	
     if remove_short is not None:
         raw = remove_short_channels(raw, min_length=remove_short)
 

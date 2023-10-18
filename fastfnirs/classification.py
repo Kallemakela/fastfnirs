@@ -14,6 +14,7 @@ from sklearn.model_selection import (
     LeaveOneGroupOut,
 )
 from sklearn.metrics import confusion_matrix, classification_report
+from fastfnirs.data import BrainDataset
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,7 @@ def get_raw_dataset_from_df(edf, channels, event_mapping):
         epoch_ids[subject] = np.array(epoch_ids[subject])
     return Xr, y, epoch_ids
 
+
 def extract_features_from_raw(X, features=["MV"], n_windows=3):
     Xf = defaultdict(list)
     for subject, d in X.items():
@@ -190,13 +192,12 @@ def extract_features_from_raw(X, features=["MV"], n_windows=3):
     return Xf
 
 
-def filter_classes(Xr, y, epoch_ids, include_classes):
+def filter_classes(Xr, y, include_classes):
     for subject in Xr.keys():
         include_ix = np.isin(y[subject], include_classes)
         Xr[subject] = Xr[subject][include_ix]
         y[subject] = y[subject][include_ix]
-        epoch_ids[subject] = epoch_ids[subject][include_ix]
-    return Xr, y, epoch_ids
+    return Xr, y
 
 
 def get_cv(y, seed=1, **kwargs):
@@ -277,18 +278,17 @@ def epoch_classification(
             Channel selection. The default is 'hbo'.
     """
     predict_cross = len(epochs_dict) > 1
-    example_epochs = [*epochs_dict.values()][0]
-    channels = get_channels_by_selection(example_epochs.ch_names, ch_selection)
-    edf, emdf = get_epochs_dfs(epochs_dict)
 
-    Xr, y, epoch_ids = get_raw_dataset_from_df(edf, channels, event_mapping)
-    include_classes = list(event_mapping.values())
-    Xr, y, epoch_ids = filter_classes(Xr, y, epoch_ids, include_classes)
+    bd = BrainDataset(epochs_dict)
+    bd.event_name_mapping_task = event_mapping
+    bd.get_full_dataset()
+    bd.filter_by_class_count()
+    bd.apply_ch_selection(ch_selection=ch_selection)
+    Xr, y = bd.X, bd.y
     X = extract_features_from_raw(Xr, features=features, n_windows=n_windows)
 
     Xc = np.concatenate([*X.values()])
     yc = np.concatenate([*y.values()])
-    epoch_ids_c = np.concatenate([*epoch_ids.values()])
     subject_ids = np.concatenate(
         [np.full(len(yi), subject) for subject, yi in y.items()]
     )
@@ -299,16 +299,13 @@ def epoch_classification(
 
     output = []
     for subject in X.keys():
-        
         if "ind_cv" in kwargs:
             sub_cv = kwargs["ind_cv"]
         else:
             sub_cv = get_cv(y[subject], seed=seed)
 
-        preds = cross_val_predict(
-            model, X[subject], y[subject], n_jobs=-1, cv=sub_cv
-        )
-        output.append((subject, preds, y[subject], epoch_ids[subject]))
+        preds = cross_val_predict(model, X[subject], y[subject], n_jobs=-1, cv=sub_cv)
+        output.append((subject, preds, y[subject]))
     ind_preds = np.concatenate([o[1] for o in output])
 
     if "cross_cv" in kwargs:
@@ -337,6 +334,4 @@ def epoch_classification(
         "ind_preds": ind_preds,
         "cross_preds": cross_preds if predict_cross else None,
         "y": yc,
-        "epoch_ids": epoch_ids_c,
-        "metadata": emdf,
     }

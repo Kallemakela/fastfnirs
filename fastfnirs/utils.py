@@ -2,6 +2,8 @@ from pathlib import Path
 import pandas as pd
 import re
 import logging
+from sklearn.metrics import accuracy_score
+from scipy.stats import bootstrap
 
 logger = logging.getLogger(__name__)
 
@@ -74,4 +76,111 @@ def get_ch_type(root_path):
 
 
 def event_mapping_to_task(event_mapping):
-    return " v ".join([f'{k.split("/")[-1]}' for k, v in event_mapping.items()])
+
+    # combine class event names, e.g. {'a': 0, 'b': 0, 'c': 1} --> {'a & b': 0, 'c': 1}
+    event_mapping_ = {}
+    for k, v in event_mapping.items():
+        if v not in event_mapping_:
+            event_mapping_[v] = k
+        else:
+            event_mapping_[v] += f" & {k}"
+
+    event_mapping_ = {v: k for k, v in sorted(event_mapping_.items())}
+
+    return " V ".join([f'{k.split("/")[-1]}' for k, v in event_mapping_.items()])
+
+
+def divide_to_groups(l, n):
+    return [l[i : i + n] for i in range(0, len(l), n)]
+
+
+def get_cwd():
+    return Path(__file__).parents[1]
+
+
+def save_to(obj, path):
+    with open(path, "wb") as f:
+        pickle.dump(obj, f)
+
+
+def load_from(path):
+    with open(path, "rb") as f:
+        obj = pickle.load(f)
+    return obj
+
+
+def is_number(s):
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
+def get_scorer_with_kwargs(scorer, **kwargs):
+    def scorer_with_kwargs(y_true, y_pred):
+        return scorer(y_true, y_pred, **kwargs)
+
+    return scorer_with_kwargs
+
+
+def format_subject(subject):
+    if isinstance(subject, int):
+        return f"sub-{subject:d}"
+    elif isinstance(subject, str):
+        if subject.startswith("sub-"):
+            return subject
+        else:
+            return f"sub-{subject}"
+    else:
+        raise ValueError(f"Unknown subject format: {subject}")
+
+
+def eval_defautdict(s):
+    p = re.compile(r"^defaultdict\(<class '(\w+)'>")
+    c = p.findall(s)[0]
+    new_s = s.replace("<class '%s'>" % c, c)
+    return eval(new_s)
+
+
+def bootstrap_eval(y, y_pred, statistic=accuracy_score, n_resamples=10000, seed=0):
+    return bootstrap(
+        (y, y_pred),
+        paired=True,
+        statistic=statistic,
+        vectorized=False,
+        method="percentile",
+        n_resamples=10000,
+        random_state=seed,
+    )
+
+
+def bres_str(bres):
+    ci_l, ci_u = bres.confidence_interval
+    se = bres.standard_error
+    return f"± {se:0.4f} ({ci_l:0.4f}, {ci_u:0.4f})"
+
+
+def get_cv_from_str(cv_str, n=None, y=None, seed=None, **kwargs):
+    if re.match(r"k\d+", cv_str):
+        from sklearn.model_selection import KFold
+
+        k = int(cv_str[1:])
+        if seed is None:
+            cv = KFold(n_splits=k)
+        else:
+            cv = KFold(n_splits=k, shuffle=True, random_state=seed)
+    elif cv_str == "loo":
+        from sklearn.model_selection import KFold
+
+        cv = KFold(n_splits=n)
+    elif cv_str == "looc":
+        from sklearn.model_selection import RepeatedStratifiedKFold
+
+        _, label_counts = np.unique(y, return_counts=True)
+        if seed == None:
+            seed = 1
+        cv = RepeatedStratifiedKFold(
+            n_splits=np.min(label_counts), n_repeats=1, random_state=seed, **kwargs
+        )
+    return cv
