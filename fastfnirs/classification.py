@@ -156,39 +156,53 @@ def get_raw_dataset_from_df(edf, channels, event_mapping):
 
 
 def extract_features_from_raw(X, features=["MV"], n_windows=3):
-    Xf = defaultdict(list)
+    """
+    X : dict
+            Dictionary subject -> x. x shape: (n_epochs, n_channels, n_samples)
+    """
+    Xf = {}
     for subject, d in X.items():
-        sXf = []
-        n_epochs, n_samples, n_channels = d.shape
+        # sXf = []
+        sXf = defaultdict(list)
+        n_epochs, n_channels, n_samples = d.shape
         L = n_samples // n_windows
         for wi in range(n_windows):
-            wd = d[:, wi * L : (wi + 1) * L, :]
+            wd = d[..., wi * L : (wi + 1) * L]
             if "IAV" in features:
-                sXf.append(np.sum(np.abs(wd), axis=1))
+                sXf["IAV"].append(np.sum(np.abs(wd), axis=-1))
             if "MAV" in features:
-                sXf.append(np.mean(np.abs(wd), axis=1))
+                sXf["MAV"].append(np.mean(np.abs(wd), axis=-1))
             if "MV" in features:
-                sXf.append(np.mean(wd, axis=1))
+                sXf["MV"].append(np.mean(wd, axis=-1))
             if "PMN" in features:
-                mu = np.mean(wd, axis=1)
-                centered_wd = wd - mu[:, None, :]
+                mu = np.mean(wd, axis=-1)
+                centered_wd = wd - mu[..., None]
                 PMN = 0
-                for si in range(wd.shape[1] - 1):
-                    PMN += centered_wd[:, si, :] * centered_wd[:, si + 1, :] < 0
-                sXf.append(PMN)
+                for si in range(wd.shape[-1] - 1):
+                    PMN += centered_wd[..., si] * centered_wd[..., si + 1] < 0
+                sXf["PMN"].append(PMN)
             if "PZN" in features:
                 PZN = 0
-                for si in range(wd.shape[1] - 1):
-                    PZN += wd[:, si, :] * wd[:, si + 1, :] < 0
-                sXf.append(PZN)
+                for si in range(wd.shape[-1] - 1):
+                    PZN += wd[..., si] * wd[..., si + 1] < 0
+                sXf["PZN"].append(PZN)
             if "STD" in features:
-                sXf.append(np.std(wd, axis=1))
+                sXf["STD"].append(np.std(wd, axis=-1))
             if "polyfit_coef_1" in features:
-                perm_wd = np.swapaxes(wd, 0, 1).reshape(wd.shape[1], -1)
-                pf = np.polyfit(np.arange(perm_wd.shape[0]), perm_wd, 1)[0]
-                sXf.append(pf.reshape(n_epochs, -1))
-        sXf = np.array(sXf).transpose(1, 2, 0).reshape(n_epochs, -1)
+                perm_wd = wd.transpose(2, 0, 1).reshape(wd.shape[-1], -1)
+                poly_x = np.arange(perm_wd.shape[0])
+                pf = np.polyfit(poly_x, perm_wd, 1)[0]
+                pf = pf.reshape(n_epochs, -1)
+                sXf["polyfit_coef_1"].append(pf)
         Xf[subject] = sXf
+    return Xf
+
+def concatenate_features(Xf):
+    for subject in Xf.keys():
+        xfc = np.array(list(Xf[subject].values())) # (n_features, n_windows, n_epochs, n_channels)
+        xfc = xfc.transpose(2, 3, 1, 0) # (n_epochs, n_channels, n_windows, n_features)
+        xfc = xfc.reshape(xfc.shape[0], -1)
+        Xf[subject] = xfc
     return Xf
 
 
@@ -285,7 +299,11 @@ def epoch_classification(
     bd.filter_by_class_count()
     bd.apply_ch_selection(ch_selection=ch_selection)
     Xr, y = bd.X, bd.y
+
+    print(np.concatenate(list(Xr.values())).shape)
     X = extract_features_from_raw(Xr, features=features, n_windows=n_windows)
+    X = concatenate_features(X)
+    print(np.concatenate(list(X.values())).shape)
 
     Xc = np.concatenate([*X.values()])
     yc = np.concatenate([*y.values()])
