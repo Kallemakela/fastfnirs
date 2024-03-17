@@ -288,6 +288,7 @@ class BrainDataset:
             ch_mask = np.array([ch_selection in ch for ch in self.ch_names])
             chs_filtered = np.array(self.ch_names)[ch_mask]
             for subject in self.X.keys():
+                print(f"Filtering {subject} from {self.X[subject].shape} to {self.X[subject][:, ch_mask, :].shape}")
                 self.X[subject] = self.X[subject][:, ch_mask, :]
             self.ch_names = chs_filtered
         else:

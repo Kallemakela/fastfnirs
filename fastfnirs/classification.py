@@ -15,6 +15,8 @@ from sklearn.model_selection import (
 )
 from sklearn.metrics import confusion_matrix, classification_report
 from fastfnirs.data import BrainDataset
+from fastfnirs.utils import combine_event_map
+
 
 logger = logging.getLogger(__name__)
 
@@ -299,10 +301,10 @@ def epoch_classification(
     bd.filter_by_class_count()
     bd.apply_ch_selection(ch_selection=ch_selection)
     Xr, y = bd.X, bd.y
+    print(len(Xr))
 
     X = extract_features_from_raw(Xr, features=features, n_windows=n_windows)
     X = concatenate_features(X)
-
     Xc = np.concatenate([*X.values()])
     yc = np.concatenate([*y.values()])
     subject_ids = np.concatenate(
@@ -334,6 +336,8 @@ def epoch_classification(
             model, Xc, yc, n_jobs=-1, cv=cross_cv.split(Xc, yc, subject_ids)
         )
 
+    combined_event_map = combine_event_map(event_mapping)
+
     if print_report:
         print(
             f"X.shape: {Xc.shape}, y label counts: {np.unique(yc, return_counts=True)}"
@@ -341,10 +345,10 @@ def epoch_classification(
         print(f"Model: {model}")
         print()
         print(f"Individual subject classification:")
-        print_results(y, ind_preds, event2name=reverse_dict(event_mapping))
+        print_results(y, ind_preds, event2name=reverse_dict(combined_event_map))
         if predict_cross:
             print(f"Cross-subject classification:")
-            print_results(y, cross_preds, event2name=reverse_dict(event_mapping))
+            print_results(y, cross_preds, event2name=reverse_dict(combined_event_map))
 
     return {
         "ind_preds": ind_preds,

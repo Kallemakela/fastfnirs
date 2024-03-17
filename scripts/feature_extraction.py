@@ -10,6 +10,7 @@ ex_x_2 = np.cos(np.linspace(0, 7, T))
 ex_x = np.vstack([ex_x_1, ex_x_2])[None, :]
 ex_x = np.tile(ex_x, (4, 1, 1))
 ex_x = ex_x * 1
+
 print(f'{ex_x.shape=}')
 ex_X = {
     'sub-01': ex_x,
@@ -37,12 +38,24 @@ px = []
 for wi in range(n_windows):
     px.append(wi*wl + wl//2)
 #%%
+
+
+feature_order = [
+    'MV',
+    'MAV',
+    'polyfit_coef_1',
+    'STD',
+    'PZN',
+    'PMN',
+]
+# eliminate channels that are not in plot_chs
+pf_ch = {k:v for k,v in pf.items() if k[:5] in plot_chs}
+# eliminate features that are not in feature_order
+pf_ch = {k:v for k,v in pf_ch.items() if k.split()[-1] in feature_order}
+# sort by feature_order
+pf_ch = dict(sorted(pf_ch.items(), key=lambda x: feature_order.index(x[0].split()[-1])))
+#%%
 plt.figure(figsize=(7, 15))
-pf_ch = {
-    k:v
-    for k,v in pf.items()
-    if k[:5] in plot_chs
-}
 for pi, (fn, f) in enumerate(pf_ch.items()):
     plt.subplot(6, 1, pi+1)
     for ci, ch in enumerate(plot_chs):
@@ -69,3 +82,4 @@ plt.suptitle('Feature extraction', fontsize=16)
 plt.tight_layout()
 plt.savefig('fig/feature_extraction.png', dpi=300)
 plt.show()
+# %%

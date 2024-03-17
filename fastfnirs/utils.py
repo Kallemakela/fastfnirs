@@ -1,4 +1,5 @@
 from pathlib import Path
+import numpy as np
 import pandas as pd
 import re
 import logging
@@ -73,21 +74,6 @@ def get_ch_type(root_path):
                         f"found ch_type {ch_type} in {subject} {task} but expected {excepted_ch_type}"
                     )
     return bids_ch_type_to_mne(excepted_ch_type)
-
-
-def event_mapping_to_task(event_mapping):
-
-    # combine class event names, e.g. {'a': 0, 'b': 0, 'c': 1} --> {'a & b': 0, 'c': 1}
-    event_mapping_ = {}
-    for k, v in event_mapping.items():
-        if v not in event_mapping_:
-            event_mapping_[v] = k
-        else:
-            event_mapping_[v] += f" & {k}"
-
-    event_mapping_ = {v: k for k, v in sorted(event_mapping_.items())}
-
-    return " V ".join([f'{k.split("/")[-1]}' for k, v in event_mapping_.items()])
 
 
 def divide_to_groups(l, n):
@@ -184,3 +170,79 @@ def get_cv_from_str(cv_str, n=None, y=None, seed=None, **kwargs):
             n_splits=np.min(label_counts), n_repeats=1, random_state=seed, **kwargs
         )
     return cv
+
+
+def find_lcs(strings):
+    """Find the longest common substring of a list of strings."""
+    # Step 1: Find the shortest string in the list.
+    shortest = min(strings, key=len)
+    
+    # Step 2: Generate all substrings of the shortest string, from longest to shortest.
+    for length in range(len(shortest), 0, -1):
+        for start in range(len(shortest) - length + 1):
+            substr = shortest[start:start + length]
+            
+            # Step 3: Check if this substring is common to all strings.
+            if all(substr in string for string in strings):
+                return substr
+    return ""  # Return an empty string if there is no common substring.
+
+
+def remove_common_part(event_mapping):
+    """remove common part from event names"""
+    substr_all = find_lcs(list(event_mapping.keys()))
+    return {k.replace(substr_all, ""): v for k, v in event_mapping.items()}
+
+
+def combine_event_map_by_substr(event_mapping):
+    """
+    Combines event names by finding the longest common substring.
+
+    e.g. {'a1': 0, 'a2': 0, 'b1': 1, 'b2': 1} --> {'a': 0, 'b': 1}
+    """
+    pretty = {}
+    event_mapping_ = event_mapping.copy()
+    unique_vals = np.unique(list(event_mapping.values()))
+
+    for u in unique_vals:
+        val_keys = [k for k, v in event_mapping_.items() if v == u]
+        common_part = find_lcs(val_keys)
+        if common_part in pretty:
+            return combine_event_map_by_substr(remove_common_part(event_mapping))
+        if len(common_part) == 0:
+            raise ValueError(f"Could not find common part for {val_keys}")
+        pretty[common_part] = u
+    return pretty
+
+
+def combine_event_map_by_concat(event_mapping):
+    """
+    Concatenates event names by combining them with a '&'.
+    """
+    event_mapping_ = {}
+    for k, v in event_mapping.items():
+        if v not in event_mapping_:
+            event_mapping_[v] = k
+        else:
+            event_mapping_[v] += f" & {k}"
+    return {v: k for k, v in sorted(event_mapping_.items())}
+
+
+def combine_event_map(event_mapping):
+    """
+    Combines event names by finding the longest common substring.
+
+    e.g. {'a1': 0, 'a2': 0, 'b1': 1, 'b2': 1} --> {'a': 0, 'b': 1}
+
+    If can't find common part, concatenates event names with a '&'.
+    """
+    try:
+        return combine_event_map_by_substr(event_mapping)
+    except ValueError:
+        return combine_event_map_by_concat(event_mapping)
+
+
+def event_mapping_to_task(event_mapping, combine=True):
+    if combine:
+        event_mapping = combine_event_map(event_mapping)
+    return " V ".join([f'{k.split("/")[-1]}' for k, v in event_mapping.items()])
