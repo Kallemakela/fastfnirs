@@ -225,7 +225,7 @@ def combine_event_map_by_concat(event_mapping):
             event_mapping_[v] = k
         else:
             event_mapping_[v] += f" & {k}"
-    return {v: k for k, v in sorted(event_mapping_.items())}
+    return {v: k for k, v in event_mapping_.items()}
 
 
 def combine_event_map(event_mapping):

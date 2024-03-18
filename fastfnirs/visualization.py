@@ -1,5 +1,7 @@
 import mne
 import matplotlib.pyplot as plt
+from fastfnirs.utils import combine_event_map
+from pathlib import Path
 
 
 def plot_evoked(epochs_dict, **kwargs):
@@ -7,14 +9,16 @@ def plot_evoked(epochs_dict, **kwargs):
     
     conditions = kwargs["conditions"] if "conditions" in kwargs else all_epochs.metadata["trial_type"].unique()
     ch_types = kwargs["ch_types"] if "ch_types" in kwargs else ["hbo", "hbr"]
+    cond_names = kwargs.get("cond_names", conditions)
 
     evoked_dict = {}
-    for condition in conditions:
+    for i, condition in enumerate(conditions):
+        cname = cond_names[i]
         for ch_type in ch_types:
-            evoked_dict[f"{condition}/{ch_type}"] = all_epochs[condition].average(
+            evoked_dict[f"{cname}/{ch_type}"] = all_epochs[condition].average(
                 picks=ch_type
             )
-            evoked_dict[f"{condition}/{ch_type}"].rename_channels(lambda x: x[:-4])
+            evoked_dict[f"{cname}/{ch_type}"].rename_channels(lambda x: x[:-4])
 
     styles_dict = {}
     if 'hbr' in ch_types:
@@ -50,7 +54,10 @@ def plot_topo(epochs_dict, **kwargs):
     if "ch_types" not in kwargs:
         kwargs["ch_types"] = ["hbo", "hbr"]
 
-    for condition in kwargs["conditions"]:
+    cond_names = kwargs.get("cond_names", kwargs["conditions"])
+
+    for i, condition in enumerate(kwargs["conditions"]):
+        cname = cond_names[i]
         for ch_type in kwargs["ch_types"]:
             evo = (
                 all_epochs[condition]
@@ -62,7 +69,9 @@ def plot_topo(epochs_dict, **kwargs):
                 # title=f'{condition}/{ch_type}',
                 show=False,
             )
-            fig.suptitle(f"{condition}/{ch_type}")
+            fig.suptitle(f"{cname}/{ch_type}")
+            if "save_path" in kwargs:
+                fig.savefig(Path(kwargs["save_path"]) / f"topo_{cname}_{ch_type}.png")
             plt.show()
 
 
@@ -86,11 +95,17 @@ def plot_joint(epochs_dict, **kwargs):
 
     all_epochs = mne.concatenate_epochs(list(epochs_dict.values()))
     if "conditions" not in kwargs:
-        kwargs["conditions"] = all_epochs.metadata["trial_type"].unique()
+        conditions = all_epochs.metadata["trial_type"].unique()
+    else:
+        conditions = kwargs["conditions"]
+
+    cond_names = kwargs.get("cond_names", conditions)
+
     if "ch_types" not in kwargs:
         kwargs["ch_types"] = ["hbo", "hbr"]
 
-    for condition in kwargs["conditions"]:
+    for i, condition in enumerate(conditions):
+        cname = cond_names[i]
         for ch_type in kwargs["ch_types"]:
             evo = (
                 all_epochs[condition]
@@ -101,8 +116,11 @@ def plot_joint(epochs_dict, **kwargs):
                 times=kwargs["times"] if "times" in kwargs else "peaks",
                 topomap_args=topomap_args,
                 ts_args=ts_args,
-                # title=f'{condition}/{ch_type}',
+                title=f'{cname}/{ch_type}',
                 show=False,
             )
-            fig.suptitle(f"{condition}/{ch_type}")
+            # fig.suptitle(f"{cname}/{ch_type}")
+            if "save_path" in kwargs:
+                fig.savefig(Path(kwargs["save_path"]) / f"joint_{cname}_{ch_type}.png")
             plt.show()
+            

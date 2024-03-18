@@ -172,6 +172,7 @@ class BrainDataset:
         self.grid = False
         self.X = None
         self.y = None
+        self.verbose = 0
 
     def __len__(self):
         return self.n_epochs
@@ -248,7 +249,8 @@ class BrainDataset:
             y = self.y[subject]
             unique, counts = np.unique(y, return_counts=True)
             if np.any(counts < min_count) or len(unique) < n_classes:
-                print(f"Removing {subject} due to class count {dict(zip(unique, counts))}")
+                if self.verbose > 0:
+                    print(f"Removing {subject} due to class count {dict(zip(unique, counts))}")
                 del self.X[subject], self.y[subject]
                 
         return self.X, self.y
@@ -283,12 +285,14 @@ class BrainDataset:
         return self.X
 
     def apply_ch_selection(self, ch_selection="hbo"):
-        print(f"Applying channel selection {ch_selection}")
+        if self.verbose > 0:
+            print(f"Applying channel selection {ch_selection}")
         if not self.grid:
             ch_mask = np.array([ch_selection in ch for ch in self.ch_names])
             chs_filtered = np.array(self.ch_names)[ch_mask]
             for subject in self.X.keys():
-                print(f"Filtering {subject} from {self.X[subject].shape} to {self.X[subject][:, ch_mask, :].shape}")
+                if self.verbose > 0:
+                    print(f"CH selection {subject} from {self.X[subject].shape} to {self.X[subject][:, ch_mask, :].shape}")
                 self.X[subject] = self.X[subject][:, ch_mask, :]
             self.ch_names = chs_filtered
         else:

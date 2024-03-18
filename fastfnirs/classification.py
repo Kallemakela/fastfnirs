@@ -297,11 +297,12 @@ def epoch_classification(
 
     bd = BrainDataset(epochs_dict)
     bd.event_name_mapping_task = event_mapping
+    if 'verbose' in kwargs:
+        bd.verbose = int(kwargs['verbose'])
     bd.get_full_dataset()
     bd.filter_by_class_count()
     bd.apply_ch_selection(ch_selection=ch_selection)
     Xr, y = bd.X, bd.y
-    print(len(Xr))
 
     X = extract_features_from_raw(Xr, features=features, n_windows=n_windows)
     X = concatenate_features(X)
