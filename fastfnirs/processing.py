@@ -181,7 +181,7 @@ def process_raw_od(
     elif ch_interpolation == "interpolate_nearest":
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
-            raw.interpolate_bads()
+            raw.interpolate_bads(verbose=verbose)
     elif ch_interpolation == "drop":
         raw.drop_channels(raw.info["bads"])
 

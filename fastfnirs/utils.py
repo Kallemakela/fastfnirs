@@ -5,6 +5,7 @@ import re
 import logging
 from sklearn.metrics import accuracy_score
 from scipy.stats import bootstrap
+import dill as pickle
 
 logger = logging.getLogger(__name__)
 
