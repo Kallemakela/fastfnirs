@@ -198,7 +198,7 @@ def create_epochs_from_raw(
     event_metadata=None,
     tmin=-5,
     tmax=12,
-    reject_criteria=dict(hbo=80e-6),
+    reject_criteria=None,
     verbose=False,
     **kwargs,
 ):
