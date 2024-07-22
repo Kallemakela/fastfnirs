@@ -196,6 +196,8 @@ def extract_features_from_raw(X, features=["MV"], n_windows=3):
                 pf = np.polyfit(poly_x, perm_wd, 1)[0]
                 pf = pf.reshape(n_epochs, -1)
                 sXf["polyfit_coef_1"].append(pf)
+            if "AMP" in features:
+                sXf["AMP"].append(np.max(wd, axis=-1) - np.min(wd, axis=-1))
         Xf[subject] = sXf
     return Xf
 
