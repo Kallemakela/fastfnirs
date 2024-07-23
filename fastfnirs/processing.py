@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import mne
+from mne_nirs.signal_enhancement import short_channel_regression
 from itertools import compress
 import warnings
 
@@ -97,6 +98,7 @@ def process_raw(
     filter_length="auto",
     filter_kwargs={},
     remove_short=None,
+    short_ch_regression=None,
     verbose=False,
 ):
     """
@@ -135,14 +137,13 @@ def process_raw(
             Remove channels with source-detector distance less than this value.
     """
 
-    if remove_short is not None:
-        raw = remove_short_channels(raw, min_length=remove_short)
-
     raw = process_raw_od(
         raw,
         ch_interpolation=ch_interpolation,
         sci_threshold=sci_threshold,
         tddr=tddr,
+        short_ch_regression=short_ch_regression,
+        remove_short=remove_short,
         verbose=verbose,
     )
     # best practice is to use ppf=6, see https://github.com/mne-tools/mne-python/pull/9843
@@ -164,15 +165,28 @@ def process_raw_od(
     ch_interpolation="interpolate_nearest",
     sci_threshold=0.5,
     tddr=True,
+    short_ch_regression=None,
+    remove_short=None,
     verbose=False,
 ) -> mne.io.Raw:
+    
+    if short_ch_regression is not None:
+        raw = short_channel_regression(raw, max_dist=short_ch_regression)
+
+    if remove_short is not None:
+        raw = remove_short_channels(raw, min_length=remove_short)
+
     with np.errstate(
         invalid="ignore"
     ):  # some channels have all zeros, they will be eliminated
         sci = mne.preprocessing.nirs.scalp_coupling_index(raw)
+    below_threshold = np.isnan(sci) | (sci <= sci_threshold)
     raw.info["bads"] = list(
-        compress(raw.ch_names, (np.isnan(sci) | (sci <= sci_threshold)))
+        compress(raw.ch_names, below_threshold)
     )
+    elim_ratio = np.sum(below_threshold) / len(below_threshold)
+    if elim_ratio > 0.5:
+        print(f"Warning: {elim_ratio:.2f} channels eliminated due to low SCI")
     if verbose:
         print(f'{len(raw.info["bads"])}/{len(raw.ch_names)} channels marked as bad')
 
