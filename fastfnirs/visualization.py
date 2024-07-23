@@ -36,6 +36,7 @@ def plot_evoked(epochs_dict, **kwargs):
 def plot_topo(epochs_dict, **kwargs):
     topomap_args = {
         "extrapolate": "local",
+        "image_interp": 'linear',
         "time_format": "%d s",
         # 'contours': contours,
         "cmap": "RdBu_r",
@@ -78,6 +79,7 @@ def plot_topo(epochs_dict, **kwargs):
 def plot_joint(epochs_dict, **kwargs):
     topomap_args = {
         "extrapolate": "local",
+        "image_interp": 'linear',
         "time_format": "%d s",
         # 'contours': contours,
         "cmap": "RdBu_r",
