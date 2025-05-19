@@ -1,3 +1,4 @@
+import re
 import numpy as np
 import pandas as pd
 from collections import defaultdict
@@ -10,11 +11,19 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import (
     cross_val_predict,
+    KFold,
     RepeatedStratifiedKFold,
     LeaveOneGroupOut,
+    LeaveOneOut,
+    RepeatedKFold,
+)
+from customCV.group import (
+    RepeatedUniqueFoldGroupKFoldPG as RepeatedUniqueFoldGroupKFold,
+    GroupCVWrapper,
 )
 from sklearn.metrics import confusion_matrix, classification_report
-from fastfnirs.data import BrainDataset
+from fastfnirs.classification.sklearn_helpers import cross_val_predict_repeated
+from fastfnirs.dataset.BrainDataset import BrainDataset
 from fastfnirs.utils import combine_event_map
 
 
@@ -86,10 +95,6 @@ def get_epochs_dfs(epochs_dict, disable_tqdm=True):
     epochs_df = pd.concat(subject_edfs, ignore_index=True)
     epochs_metadata_df = pd.concat(epoch_metadata_dfs, ignore_index=True)
     return epochs_df, epochs_metadata_df
-
-
-def reverse_dict(d):
-    return {v: k for k, v in d.items()}
 
 
 def get_model(model_name="lda", n_classes=None, seed=1):
@@ -201,10 +206,13 @@ def extract_features_from_raw(X, features=["MV"], n_windows=3):
         Xf[subject] = sXf
     return Xf
 
+
 def concatenate_features(Xf):
     for subject in Xf.keys():
-        xfc = np.array(list(Xf[subject].values())) # (n_features, n_windows, n_epochs, n_channels)
-        xfc = xfc.transpose(2, 3, 1, 0) # (n_epochs, n_channels, n_windows, n_features)
+        xfc = np.array(
+            list(Xf[subject].values())
+        )  # (n_features, n_windows, n_epochs, n_channels)
+        xfc = xfc.transpose(2, 3, 1, 0)  # (n_epochs, n_channels, n_windows, n_features)
         xfc = xfc.reshape(xfc.shape[0], -1)
         Xf[subject] = xfc
     return Xf
@@ -218,12 +226,58 @@ def filter_classes(Xr, y, include_classes):
     return Xr, y
 
 
-def get_cv(y, seed=1, **kwargs):
-    _, label_counts = np.unique(y, return_counts=True)
-    cv = RepeatedStratifiedKFold(
-        n_splits=np.min(label_counts), n_repeats=1, random_state=seed, **kwargs
-    )
-    return cv
+def get_cv_from_str(cv_str, n=None, y=None, seed=None, **kwargs):
+    if re.match(r"k\d+", cv_str):
+        k = int(cv_str[1:])
+        if seed is None:
+            return KFold(n_splits=k)
+        else:
+            return KFold(n_splits=k, shuffle=True, random_state=seed)
+    elif cv_str == "loo":
+        return KFold(n_splits=n)
+    # "looeco_r2"
+    elif cv_str.startswith("looeco"):
+        parts = cv_str.split("_")
+        n_repeats = int(parts[1][1:]) if len(parts) == 2 else 1
+        _, label_counts = np.unique(y, return_counts=True)
+        return RepeatedStratifiedKFold(
+            n_splits=np.min(label_counts),
+            n_repeats=n_repeats,
+            random_state=seed,
+            **kwargs,
+        )
+    # sk10
+    elif cv_str.startswith("sk"):
+        parts = cv_str.split("_")
+        n_splits = int(parts[0][2:])
+        n_repeats = int(parts[1][1:]) if len(parts) == 2 else 1
+        return RepeatedStratifiedKFold(
+            n_splits=n_splits, n_repeats=n_repeats, random_state=seed, **kwargs
+        )
+    # loso
+    elif cv_str.startswith("loso"):
+        base_cv = LeaveOneOut()
+        return GroupCVWrapper(base_cv)
+    # gk2_r2
+    elif cv_str.startswith("gk"):
+        parts = cv_str.split("_")
+        n_splits = int(parts[0][2:])
+        n_repeats = int(parts[1][1:]) if len(parts) == 2 else 1
+        base_cv = RepeatedKFold(
+            n_splits=n_splits, n_repeats=n_repeats, random_state=seed, **kwargs
+        )
+        return GroupCVWrapper(base_cv)
+
+    # ugk2_r2
+    elif cv_str.startswith("ugk"):
+        parts = cv_str.split("_")
+        n_splits = int(parts[0][3:])
+        n_repeats = int(parts[1][1:]) if len(parts) == 2 else 1
+        return RepeatedUniqueFoldGroupKFold(
+            n_splits=n_splits, n_repeats=n_repeats, random_state=seed, **kwargs
+        )
+    else:
+        raise ValueError(f"Unknown cv_str: {cv_str}")
 
 
 def ind_clf(X, y, model=None):
@@ -233,7 +287,7 @@ def ind_clf(X, y, model=None):
     output = []
     for subject in X.keys():
         preds = cross_val_predict(
-            model, X[subject], y[subject], n_jobs=-1, cv=get_cv(y[subject])
+            model, X[subject], y[subject], n_jobs=-1, cv=get_cv_from_str(y=y[subject])
         )
         output.append((subject, preds, y[subject]))  # , epoch_ids[subject]))
     ind_preds = np.concatenate([o[1] for o in output])
@@ -252,109 +306,3 @@ def cross_clf(X, y, model=None):
         model, Xc, yc, n_jobs=-1, cv=LeaveOneGroupOut().split(Xc, yc, subject_ids)
     )
     return cross_preds
-
-
-def print_results(y, preds, event2name=None):
-    yc = np.concatenate([yi for yi in y.values()])
-    print(
-        classification_report(
-            yc, preds, target_names=[event2name[c] for c in np.unique(yc)]
-        )
-    )
-    print(confusion_matrix(yc, preds))
-    print()
-    for condition in np.unique(yc):
-        print(
-            f"{event2name[condition]:5}: {np.mean(preds[yc == condition] == condition):.3f}"
-        )
-
-
-def epoch_classification(
-    epochs_dict,
-    event_mapping,
-    features=["MV"],
-    n_windows=1,
-    ch_selection="hbo",
-    print_report=True,
-    seed=1,
-    **kwargs,
-):
-    """
-    Performs subject-specific and cross-subject classification of epochs.
-
-    Parameters
-    ----------
-    epochs_dict : dict
-            Dictionary of epochs, with subject IDs as keys.
-    event_mapping : dict
-            Dictionary mapping event names to integers.
-    features : list, optional
-            List of features to extract from epochs. The default is ['MV'].
-    n_windows : int, optional
-            Number of windows to split each epoch into. The default is 1.
-    ch_selection : str, optional
-            Channel selection. The default is 'hbo'.
-    """
-    predict_cross = len(epochs_dict) > 1
-
-    bd = BrainDataset(epochs_dict)
-    bd.event_name_mapping_task = event_mapping
-    if 'verbose' in kwargs:
-        bd.verbose = int(kwargs['verbose'])
-    bd.get_full_dataset()
-    bd.filter_by_class_count()
-    bd.apply_ch_selection(ch_selection=ch_selection)
-    Xr, y = bd.X, bd.y
-
-    X = extract_features_from_raw(Xr, features=features, n_windows=n_windows)
-    X = concatenate_features(X)
-    Xc = np.concatenate([*X.values()])
-    yc = np.concatenate([*y.values()])
-    subject_ids = np.concatenate(
-        [np.full(len(yi), subject) for subject, yi in y.items()]
-    )
-    if "model" in kwargs:
-        model = kwargs["model"]
-    else:
-        model = get_model(n_classes=len(np.unique(yc)), seed=seed)
-
-    output = []
-    for subject in X.keys():
-        if "ind_cv" in kwargs:
-            sub_cv = kwargs["ind_cv"]
-        else:
-            sub_cv = get_cv(y[subject], seed=seed)
-
-        preds = cross_val_predict(model, X[subject], y[subject], n_jobs=-1, cv=sub_cv)
-        output.append((subject, preds, y[subject]))
-    ind_preds = np.concatenate([o[1] for o in output])
-
-    if "cross_cv" in kwargs:
-        cross_cv = kwargs["cross_cv"]
-    else:
-        cross_cv = LeaveOneGroupOut()
-
-    if predict_cross:
-        cross_preds = cross_val_predict(
-            model, Xc, yc, n_jobs=-1, cv=cross_cv.split(Xc, yc, subject_ids)
-        )
-
-    combined_event_map = combine_event_map(event_mapping)
-
-    if print_report:
-        print(
-            f"X.shape: {Xc.shape}, y label counts: {np.unique(yc, return_counts=True)}"
-        )
-        print(f"Model: {model}")
-        print()
-        print(f"Individual subject classification:")
-        print_results(y, ind_preds, event2name=reverse_dict(combined_event_map))
-        if predict_cross:
-            print(f"Cross-subject classification:")
-            print_results(y, cross_preds, event2name=reverse_dict(combined_event_map))
-
-    return {
-        "ind_preds": ind_preds,
-        "cross_preds": cross_preds if predict_cross else None,
-        "y": yc,
-    }

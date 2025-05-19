@@ -1,16 +1,7 @@
-# Fast-fnirs
+# %%
+#!%load_ext autoreload
+#!%autoreload 2
 
-A package for fast fNIRS analysis.
-
-Currently offers:
-
-1. Processing from BIDS to MNE epochs
-2. Subject-specific and cross-subject classification
-3. Simple visualization
-
-## Example 
-
-```python
 import numpy as np
 import logging
 import mne_nirs
@@ -22,10 +13,8 @@ from fastfnirs.visualization import plot_evoked
 from fastfnirs.utils import get_subjects
 
 logger = logging.getLogger(__name__)
-```
+# %% Load data
 
-```python
-# Load data
 datapath = mne_nirs.datasets.fnirs_motor_group.data_path()
 root_path = datapath
 
@@ -47,10 +36,8 @@ epochs_dict = bids_to_mne(
 )
 
 bd = BrainDataset(epochs_dict["tapping"]).load_epoch_data()
-```
+# %% Classification
 
-```python
-# Classification
 event_mapping = {
     "Tapping/Left": 0,
     "Tapping/Right": 1,
@@ -67,56 +54,11 @@ clf_res = epoch_classification(
     ind_cv=f"looeco_r{repeats_ind}",
     cross_cv=f"gk3_r{repeats_cross}",
 )
-```
+# %% Compare evoked responses for classes
 
-```
-X.shape: (300, 84), y label counts: (array([0, 1]), array([150, 150]))
-Model: Pipeline(steps=[('scaler', StandardScaler()),
-                ('clf',
-                 LinearDiscriminantAnalysis(shrinkage='auto', solver='lsqr'))])
-
-Individual subject classification:
-(300, 2) (300,)
-               precision    recall  f1-score   support
-
- Tapping/Left       0.84      0.88      0.86       300
-Tapping/Right       0.88      0.83      0.85       300
-
-     accuracy                           0.86       600
-    macro avg       0.86      0.86      0.86       600
- weighted avg       0.86      0.86      0.86       600
-
-[[265  35]
- [ 50 250]]
-
-Tapping/Left: 0.883
-Tapping/Right: 0.833
-Cross-subject classification:
-(300, 2) (300,)
-               precision    recall  f1-score   support
-
- Tapping/Left       0.75      0.79      0.77       300
-Tapping/Right       0.78      0.73      0.75       300
-
-     accuracy                           0.76       600
-    macro avg       0.76      0.76      0.76       600
- weighted avg       0.76      0.76      0.76       600
-
-[[237  63]
- [ 80 220]]
-
-Tapping/Left: 0.790
-Tapping/Right: 0.733
-```
-
-```python
-# Compare evoked responses for classes
 plot_evoked(epochs_dict["tapping"], conditions=list(event_mapping.keys()))
-```
-![png](fnirs_tapping_4_0.png)
+# %% Connect to metadata
 
-```python
-# Connect to metadata and analyze results
 md = bd.get_metadata()
 keep_cols = ["subject", "trial_type"]
 md = md[keep_cols]
@@ -124,6 +66,7 @@ md = md[md["trial_type"].isin(list(event_mapping.keys()))]
 md["target"] = md["trial_type"].map(event_mapping)
 md["cross_preds"] = list(clf_res["cross_preds_arr"])
 md["ind_preds"] = list(clf_res["ind_preds_arr"])
+
 
 print(f"{'Subject':<10} {'Cross':<10} {'Withn':<10}")
 for subject in md["subject"].unique():
@@ -140,15 +83,6 @@ for subject in md["subject"].unique():
     )  # (n_trials, repeats)
     ind_acc = (sub_ind_preds == target_repeated).mean()
     print(f"{subject:<10} {cross_acc:<10.2f} {ind_acc:<10.2f}")
-```
-
-```
-Subject    Cross      Withn     
-sub-01     0.79       0.87      
-sub-02     0.68       0.85      
-sub-03     0.67       0.66      
-sub-04     0.97       0.97      
-sub-05     0.69       0.95      
-```
 
 
+# %%

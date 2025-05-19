@@ -148,41 +148,16 @@ def bres_str(bres):
     return f"± {se:0.4f} ({ci_l:0.4f}, {ci_u:0.4f})"
 
 
-def get_cv_from_str(cv_str, n=None, y=None, seed=None, **kwargs):
-    if re.match(r"k\d+", cv_str):
-        from sklearn.model_selection import KFold
-
-        k = int(cv_str[1:])
-        if seed is None:
-            cv = KFold(n_splits=k)
-        else:
-            cv = KFold(n_splits=k, shuffle=True, random_state=seed)
-    elif cv_str == "loo":
-        from sklearn.model_selection import KFold
-
-        cv = KFold(n_splits=n)
-    elif cv_str == "looc":
-        from sklearn.model_selection import RepeatedStratifiedKFold
-
-        _, label_counts = np.unique(y, return_counts=True)
-        if seed == None:
-            seed = 1
-        cv = RepeatedStratifiedKFold(
-            n_splits=np.min(label_counts), n_repeats=1, random_state=seed, **kwargs
-        )
-    return cv
-
-
 def find_lcs(strings):
     """Find the longest common substring of a list of strings."""
     # Step 1: Find the shortest string in the list.
     shortest = min(strings, key=len)
-    
+
     # Step 2: Generate all substrings of the shortest string, from longest to shortest.
     for length in range(len(shortest), 0, -1):
         for start in range(len(shortest) - length + 1):
-            substr = shortest[start:start + length]
-            
+            substr = shortest[start : start + length]
+
             # Step 3: Check if this substring is common to all strings.
             if all(substr in string for string in strings):
                 return substr
