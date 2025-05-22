@@ -8,3 +8,10 @@ def split_list(lst, n_parts):
 
 def reverse_dict(d):
     return {v: k for k, v in d.items()}
+
+
+def centered_moving_average(scores, window_size=11):
+    assert window_size % 2 == 1, "Window size must be odd for centered MA"
+    pad = window_size // 2
+    padded = np.pad(scores, (pad, pad), mode="edge")
+    return np.convolve(padded, np.ones(window_size) / window_size, mode="valid")

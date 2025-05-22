@@ -13,3 +13,4 @@ __all__ = [
 ]
 
 from .classification import *
+from .nested_cv import NestedCV

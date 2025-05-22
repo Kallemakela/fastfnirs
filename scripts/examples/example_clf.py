@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 datapath = mne_nirs.datasets.fnirs_motor_group.data_path()
 root_path = datapath
+# %%
 
 subjects = get_subjects(root_path)
 process_raw_kwargs = dict(
@@ -34,7 +35,7 @@ epochs_dict = bids_to_mne(
     process_raw_kwargs=process_raw_kwargs,
     epochs_kwargs=epochs_kwargs,
 )
-
+# %%
 bd = BrainDataset(epochs_dict["tapping"]).load_epoch_data()
 # %% Classification
 

@@ -6,6 +6,28 @@ import scipy.signal
 from tqdm import tqdm
 
 
+class fNIRSFeatureExtractor:
+    """
+    Extracts features from a 3D array of shape (n_epochs, n_samples, n_channels). Meant to be used as a transformer in a sklearn pipeline.
+    """
+
+    def __init__(self, features=["MV"], n_windows=3):
+        self.features = features
+        self.n_windows = n_windows
+
+    def fit(self, X, y):
+        return self
+
+    def transform(self, X):
+        f = extract_features_array(X.transpose(0, 2, 1), self.features, self.n_windows)
+        return f
+
+    def set_params(self, **params):
+        self.features = params["features"]
+        self.n_windows = params["n_windows"]
+        return self
+
+
 def create_windowed_feature_dataset(
     edf, n_windows, chs, tmax, sfreq, include_freq=False, disable_tqdm=False
 ):
@@ -170,6 +192,14 @@ def extract_window_features_for_epoch(epoch_df, chs, l, sfreq, include_freq=Fals
 
 
 def extract_features_array(d, features=["MV"], n_windows=3):
+    """
+    Extracts features from a 3D array of shape (n_epochs, n_samples, n_channels).
+
+    Parameters
+    ----------
+    d : numpy.ndarray
+        Array of shape (n_epochs, n_samples, n_channels).
+    """
     sXf = []
     n_epochs, n_samples, n_channels = d.shape
     L = n_samples // n_windows
@@ -195,7 +225,7 @@ def extract_features_array(d, features=["MV"], n_windows=3):
             sXf.append(PZN)
         if "STD" in features:
             sXf.append(np.std(wd, axis=1))
-        if "polyfit_coef_1" in features:
+        if "SLO" in features:
             perm_wd = np.swapaxes(wd, 0, 1).reshape(wd.shape[1], -1)
             pf = np.polyfit(np.arange(perm_wd.shape[0]), perm_wd, 1)[0]
             sXf.append(pf.reshape(n_epochs, -1))

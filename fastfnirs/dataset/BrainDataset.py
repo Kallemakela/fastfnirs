@@ -177,9 +177,9 @@ class BrainDataset:
         return self
 
     def to_grid(self, **kwargs):
-        self.ch2grid = get_ch2grid(self.example_epochs.info["chs"])
+        self.ch2grid = get_ch2grid(self.example_epochs.info["chs"], **kwargs)
         chs = [ch for ch in self.ch_names if "hbo" in ch]
-        self.X = X2grid_new(self.X, chs, self.ch2grid)
+        self.X = X2grid_new(self.X, chs, self.ch2grid, **kwargs)
         # for individual ch2grid for each subject use: self.X = bd2grid_ind(bd)
         self.grid = True
         return self
@@ -228,8 +228,8 @@ class BrainDataset:
     def keep_classes(self, classes):
         """Keeps only the classes in classes"""
         for subject in self.X.keys():
-            y = self.y[subject]
-            mask = np.isin(y, classes)
+            ys = self.y[subject]
+            mask = np.isin(ys, list(classes))
             self.X[subject] = self.X[subject][mask]
             self.y[subject] = self.y[subject][mask]
         return self

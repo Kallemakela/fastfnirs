@@ -1,6 +1,5 @@
-"""
+""" """
 
-"""
 import pandas as pd
 from pathlib import Path
 import logging
@@ -70,6 +69,7 @@ def bids_to_mne(
     read_bids_nirs_kwargs={},
     process_raw_kwargs={},
     epochs_kwargs={},
+    **kwargs,
 ):
     """
     Reads the BIDS data and creates and saves MNE objects in specified formats.
@@ -88,12 +88,12 @@ def bids_to_mne(
         Dictionary of epochs for each subject and task.
     """
 
-    subjects = get_subjects(root_path)
+    subjects = kwargs.get("subjects", get_subjects(root_path))
     ch_type = get_ch_type(root_path)
     logger.info(f"ch_type={ch_type}")
     epochs_dict = {}
     for subject in subjects:
-        tasks = get_tasks(root_path, subject)
+        tasks = kwargs.get("tasks", get_tasks(root_path, subject))
         for task in tasks:
             logger.info(f"Processing subject={subject}, events={task}")
             event_metadata = read_events_metadata(root_path, subject, task=task)

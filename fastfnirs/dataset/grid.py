@@ -3,7 +3,7 @@ from fastfnirs.dataset.interpolation import interpolate
 from joblib import Parallel, delayed
 
 
-def to_grid(D, ch_names, ch2grid, c=2, w=11, h=5, reverse_y=True):
+def to_grid(D, ch_names, ch2grid, c=2, w=11, h=5, reverse_y=True, **kwargs):
     """
     D: (n_epochs, n_channels, n_samples)
     ch_names: channels names, same order as D
@@ -33,7 +33,7 @@ def X2grid_new(
     print("Converting to grid")
 
     def X2grid_subject(Xs, ch_names, ch2grid, **kwargs):
-        Xs_new = to_grid(Xs, ch_names, ch2grid, **to_grid_params)
+        Xs_new = to_grid(Xs, ch_names, ch2grid, **kwargs)
         n_epochs, n_chs, h, w, T = Xs_new.shape
         for ei in range(n_epochs):
             for ci in range(n_chs):
@@ -41,7 +41,8 @@ def X2grid_new(
                     # zero_ch_mask = (Xs_new[ei,ci,:,:,ti] == 0)
                     # print(f'{zero_ch_mask.astype(int)}')
                     # if ei % 30 == 0 and ti == T // 2: plot_grid(Xs_new[ei,ci,:,:,ti], title=f'Before interpolation')
-                    interpolated = interpolate(Xs_new[ei, ci, :, :, ti], **kwargs)
+                    # interpolated = interpolate(Xs_new[ei, ci, :, :, ti], **kwargs)
+                    interpolated = interpolate(Xs_new[ei, ci, :, :, ti])
                     # zero_ch_mask = (interpolated == 0)
                     # print(f'{zero_ch_mask.astype(int)}')
                     # if ei % 30 == 0 and ti == T // 2: plot_grid(interpolated, title=f'After cubic interpolation')
@@ -113,7 +114,7 @@ def bd2grid_ind(bd, to_grid_params={"h": 5, "w": 11, "c": 1}, **kwargs):
     return X_new
 
 
-def get_ch2grid(chs, w=11, h=5, reverse_y=True):
+def get_ch2grid(chs, w=11, h=5, reverse_y=True, **kwargs):
     """
     chs: mne.info['chs']
     """

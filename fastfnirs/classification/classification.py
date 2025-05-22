@@ -4,7 +4,7 @@ import pandas as pd
 from collections import defaultdict
 from tqdm import tqdm
 import logging
-
+from sklearn.model_selection import BaseCrossValidator
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -280,17 +280,36 @@ def get_cv_from_str(cv_str, n=None, y=None, seed=None, **kwargs):
         raise ValueError(f"Unknown cv_str: {cv_str}")
 
 
-def ind_clf(X, y, model=None):
+def get_cv_splits_from_arg(cv_arg, **kwargs):
+    if isinstance(cv_arg, str):
+        return list(get_cv_from_str(cv_arg, **kwargs).split(**kwargs))
+    elif isinstance(cv_arg, list):
+        return cv_arg
+    elif isinstance(cv_arg, BaseCrossValidator):
+        return list(cv_arg.split(**kwargs))
+    else:
+        raise ValueError(f"Unknown cv_arg: {cv_arg}")
+
+
+def ind_clf(X, y, model=None, cv_str="looeco_r1"):
+    """
+    Performs within-subject classification. Returns a list of tuples (subject, preds, y).
+    """
     if model is None:
         yc = np.concatenate([yi for yi in y.values()])
         model = get_model(n_classes=len(np.unique(yc)))
-    output = []
+    ind_preds = []
     for subject in X.keys():
-        preds = cross_val_predict(
-            model, X[subject], y[subject], n_jobs=-1, cv=get_cv_from_str(y=y[subject])
+        Xs, ys = X[subject], y[subject]
+        splits = list(get_cv_from_str(cv_str, y=ys).split(Xs, ys))
+        preds = cross_val_predict_repeated(
+            model,
+            Xs,
+            ys,
+            n_jobs=-1,
+            splits=splits,
         )
-        output.append((subject, preds, y[subject]))  # , epoch_ids[subject]))
-    ind_preds = np.concatenate([o[1] for o in output])
+        ind_preds.append((subject, preds, ys))
     return ind_preds
 
 
