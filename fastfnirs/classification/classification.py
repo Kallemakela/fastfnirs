@@ -162,48 +162,58 @@ def get_raw_dataset_from_df(edf, channels, event_mapping):
     return Xr, y, epoch_ids
 
 
+def extract_features_from_array(d, features=["MV"], n_windows=3):
+    """
+    d : np.ndarray of shape (n_epochs, n_channels, n_samples)
+    """
+    sXf = defaultdict(list)
+    n_epochs, n_channels, n_samples = d.shape
+    L = n_samples // n_windows
+
+    for wi in range(n_windows):
+        wd = d[..., wi * L : (wi + 1) * L]
+        if "IAV" in features:
+            sXf["IAV"].append(np.sum(np.abs(wd), axis=-1))
+        if "MAV" in features:
+            sXf["MAV"].append(np.mean(np.abs(wd), axis=-1))
+        if "MV" in features:
+            sXf["MV"].append(np.mean(wd, axis=-1))
+        if "PMN" in features:
+            mu = np.mean(wd, axis=-1)
+            centered_wd = wd - mu[..., None]
+            PMN = 0
+            for si in range(wd.shape[-1] - 1):
+                PMN += centered_wd[..., si] * centered_wd[..., si + 1] < 0
+            sXf["PMN"].append(PMN)
+        if "PZN" in features:
+            PZN = 0
+            for si in range(wd.shape[-1] - 1):
+                PZN += wd[..., si] * wd[..., si + 1] < 0
+            sXf["PZN"].append(PZN)
+        if "STD" in features:
+            sXf["STD"].append(np.std(wd, axis=-1))
+        if "polyfit_coef_1" in features:
+            perm_wd = wd.transpose(2, 0, 1).reshape(wd.shape[-1], -1)
+            poly_x = np.arange(perm_wd.shape[0])
+            pf = np.polyfit(poly_x, perm_wd, 1)[0]
+            pf = pf.reshape(n_epochs, -1)
+            sXf["polyfit_coef_1"].append(pf)
+        if "AMP" in features:
+            sXf["AMP"].append(np.max(wd, axis=-1) - np.min(wd, axis=-1))
+
+    return sXf
+
+
 def extract_features_from_raw(X, features=["MV"], n_windows=3):
     """
     X : dict
-            Dictionary subject -> x. x shape: (n_epochs, n_channels, n_samples)
+        Dictionary subject -> x. x shape: (n_epochs, n_channels, n_samples)
     """
     Xf = {}
     for subject, d in X.items():
-        # sXf = []
-        sXf = defaultdict(list)
-        n_epochs, n_channels, n_samples = d.shape
-        L = n_samples // n_windows
-        for wi in range(n_windows):
-            wd = d[..., wi * L : (wi + 1) * L]
-            if "IAV" in features:
-                sXf["IAV"].append(np.sum(np.abs(wd), axis=-1))
-            if "MAV" in features:
-                sXf["MAV"].append(np.mean(np.abs(wd), axis=-1))
-            if "MV" in features:
-                sXf["MV"].append(np.mean(wd, axis=-1))
-            if "PMN" in features:
-                mu = np.mean(wd, axis=-1)
-                centered_wd = wd - mu[..., None]
-                PMN = 0
-                for si in range(wd.shape[-1] - 1):
-                    PMN += centered_wd[..., si] * centered_wd[..., si + 1] < 0
-                sXf["PMN"].append(PMN)
-            if "PZN" in features:
-                PZN = 0
-                for si in range(wd.shape[-1] - 1):
-                    PZN += wd[..., si] * wd[..., si + 1] < 0
-                sXf["PZN"].append(PZN)
-            if "STD" in features:
-                sXf["STD"].append(np.std(wd, axis=-1))
-            if "polyfit_coef_1" in features:
-                perm_wd = wd.transpose(2, 0, 1).reshape(wd.shape[-1], -1)
-                poly_x = np.arange(perm_wd.shape[0])
-                pf = np.polyfit(poly_x, perm_wd, 1)[0]
-                pf = pf.reshape(n_epochs, -1)
-                sXf["polyfit_coef_1"].append(pf)
-            if "AMP" in features:
-                sXf["AMP"].append(np.max(wd, axis=-1) - np.min(wd, axis=-1))
-        Xf[subject] = sXf
+        Xf[subject] = extract_features_from_array(
+            d, features=features, n_windows=n_windows
+        )
     return Xf
 
 
@@ -218,6 +228,17 @@ def concatenate_features(Xf):
     return Xf
 
 
+def extract_features_simple(*args, **kwargs):
+    """
+    Wrapper for `extract_features_from_array` that only returns the features.
+    Returns them in (epochs, channels, features) shape.
+    """
+    Xf = extract_features_from_array(*args, **kwargs)
+    Xf = np.array([f for ft in Xf.values() for f in ft])
+    Xf = Xf.transpose(1, 2, 0)  # (n_epochs, n_channels, n_features)
+    return Xf
+
+
 def filter_classes(Xr, y, include_classes):
     for subject in Xr.keys():
         include_ix = np.isin(y[subject], include_classes)
@@ -226,7 +247,7 @@ def filter_classes(Xr, y, include_classes):
     return Xr, y
 
 
-def get_cv_from_str(cv_str, n=None, y=None, seed=None, **kwargs):
+def get_cv_from_str(cv_str, n=None, y=None, seed=None, X=None, groups=None, **kwargs):
     if re.match(r"k\d+", cv_str):
         k = int(cv_str[1:])
         if seed is None:
@@ -281,8 +302,12 @@ def get_cv_from_str(cv_str, n=None, y=None, seed=None, **kwargs):
 
 
 def get_cv_splits_from_arg(cv_arg, **kwargs):
+    get_cv_args = {
+        "y": kwargs.get("y"),
+        "seed": kwargs.pop("seed", None),
+    }
     if isinstance(cv_arg, str):
-        return list(get_cv_from_str(cv_arg, **kwargs).split(**kwargs))
+        return list(get_cv_from_str(cv_arg, **get_cv_args).split(**kwargs))
     elif isinstance(cv_arg, list):
         return cv_arg
     elif isinstance(cv_arg, BaseCrossValidator):

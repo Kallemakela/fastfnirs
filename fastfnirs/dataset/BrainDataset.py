@@ -155,14 +155,14 @@ class BrainDataset:
     def downsample(self, T_new=60, **kwargs):
         for sub in self.X.keys():
             T = self.X[sub].shape[-1]
-            l = T // T_new
+            l = T / T_new
             X_new_sub = np.zeros((*self.X[sub].shape[:-1], T_new))
             for wi in range(T_new):
-                ws = wi * l
-                we = (wi + 1) * l
+                ws = np.round(wi * l).astype(int)
+                we = np.round((wi + 1) * l).astype(int)
                 X_new_sub[:, :, wi] = self.X[sub][:, :, ws:we].mean(axis=-1)
             self.X[sub] = X_new_sub
-        self.sfreq = self.sfreq // l
+        self.sfreq = self.sfreq / l
         print(f"Downsampled from {T} to {T_new}, sfreq: {self.sfreq:.1f}")
         return self
 

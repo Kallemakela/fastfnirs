@@ -13,8 +13,8 @@ from fastfnirs.classification import get_cv_from_str
 
 def ma_score(net, X=None, y=None, n_epochs=5, score_name="valid_acc"):
     """Moving average score over the last n_epochs"""
-    accs = net.history[-n_epochs:, score_name]
-    return np.mean(accs)
+    scores = net.history[-n_epochs:, score_name]
+    return np.mean(scores)
 
 
 def get_model(
@@ -23,6 +23,7 @@ def get_model(
     net_params,
     train_split=None,
     criterion=nn.CrossEntropyLoss,
+    init_weights=None,
     **kwargs,
 ):
     skorch_net = NeuralNetClassifier(
@@ -36,6 +37,11 @@ def get_model(
         **kwargs,
     )
 
+    if init_weights is not None:
+        print(f"Loading weights from: {init_weights}")
+        skorch_net.initialize()
+        skorch_net.load_params(f_params=init_weights)
+    
     # to remove callback
     # skorch_net.set_params(callbacks__valid_acc=None)
 
@@ -70,7 +76,9 @@ class NestedCVSkorch:
 
     def fit(self, X, y):
         outer_splits = get_cv_splits_from_arg(self.outer_cv, X=X, y=y)
-        for i, (o_tr_ix, o_te_ix) in tqdm(enumerate(outer_splits), **self.tqdm_kwargs):
+        for i, (o_tr_ix, o_te_ix) in tqdm(
+            enumerate(outer_splits), total=len(outer_splits), **self.tqdm_kwargs
+        ):
             X_tr, y_tr = X[o_tr_ix], y[o_tr_ix]
 
             # inner CV
@@ -84,7 +92,7 @@ class NestedCVSkorch:
                     X_tr_i, y_tr_i = X_tr[i_tr_ix], y_tr[i_tr_ix]
                     X_val, y_val = X_tr[i_te_ix], y_tr[i_te_ix]
                     callbacks = self.default_callbacks + [
-                        ValScoring(X_val, y_val, scorer=self.scoring, name="val_acc")
+                        ValScoring(X_val, y_val, scorer=self.scoring, name="val_score")
                     ]
                     inner_split_model = get_model(
                         self.base_model,
@@ -96,7 +104,7 @@ class NestedCVSkorch:
                     inner_split_model.fit(X_tr_i, y_tr_i)
                     isplit_val_accs = np.array(
                         [
-                            h["val_acc"]
+                            h["val_score"]
                             for h in inner_split_model.named_steps["net"].history
                         ]
                     )
@@ -111,7 +119,7 @@ class NestedCVSkorch:
             # refit and test
             X_te, y_te = X[o_te_ix], y[o_te_ix]
             callbacks = self.default_callbacks + [
-                ValScoring(X_te, y_te, scorer=self.scoring, name="test_acc")
+                ValScoring(X_te, y_te, scorer=self.scoring, name="test_score")
             ]
             test_model = get_model(
                 self.base_model,
@@ -122,7 +130,7 @@ class NestedCVSkorch:
             )
             test_model.fit(X_tr, y_tr)
             test_scores = np.array(
-                [h["test_acc"] for h in test_model.named_steps["net"].history]
+                [h["test_score"] for h in test_model.named_steps["net"].history]
             )
             self.outer_split_info.append(
                 {

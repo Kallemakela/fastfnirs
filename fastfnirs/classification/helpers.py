@@ -87,7 +87,7 @@ def epoch_classification(
             if isinstance(sub_cv, str):
                 sub_cv = get_cv_from_str(sub_cv, y=ys, seed=seed)
         else:
-            sub_cv = get_cv_from_str("looeco_r1", y=ys, seed=seed)
+            sub_cv = get_cv_from_str("sk5_r1", y=ys, seed=seed)
         sub_cv = list(sub_cv.split(Xs, ys))
         preds = cross_val_predict_repeated(model, Xs, ys, splits=sub_cv)
         ind_preds.append((subject, preds, ys))

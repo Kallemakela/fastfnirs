@@ -24,9 +24,7 @@ def to_grid(D, ch_names, ch2grid, c=2, w=11, h=5, reverse_y=True, **kwargs):
     return Dgrid
 
 
-def X2grid_new(
-    X, ch_names, ch2grid, to_grid_params={"h": 5, "w": 11, "c": 1}, **kwargs
-):
+def X2grid_new(X, ch_names, ch2grid, **kwargs):
     """
     Uses the same ch2grid for all subjects
     """
@@ -57,7 +55,7 @@ def X2grid_new(
     X_new = Parallel(n_jobs=-1)(
         delayed(X2grid_subject)(X[sub], ch_names, ch2grid, **kwargs) for sub in X
     )
-    # print('WARNING: not using parallel')
+    # print("WARNING: not using parallel")
     # X_new = [X2grid_subject(X[sub], ch_names, ch2grid, **kwargs) for sub in X]
     X_new = {sub: X_new[i] for i, sub in enumerate(X)}
     return X_new

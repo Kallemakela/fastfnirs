@@ -173,22 +173,6 @@ class EEGNet(pl.LightningModule):
         y_hat = self(x)
         return y_hat
 
-    # def on_validation_epoch_end(self):
-    #     logits, y = [], []
-    #     for output in self.val_step_outputs:
-    #         logits.append(output['y_hat'])
-    #         y.append(output['y'])
-    #     logits = torch.cat(logits)
-    #     y = torch.cat(y)
-    #     y_pred = logits.argmax(dim=-1)
-    #     metric = f1_score(
-    #         y.cpu().numpy(),
-    #         y_pred.cpu().numpy(),
-    #         average='macro'
-    #     )
-    #     self.val_metrics[self.current_epoch] = metric
-    #     self.val_step_outputs.clear()
-
     def on_validation_epoch_end(self):
         logits, y = defaultdict(list), defaultdict(list)
         for output in self.val_step_outputs:
@@ -200,8 +184,11 @@ class EEGNet(pl.LightningModule):
             logits[dataloader_idx] = torch.cat(logits[dataloader_idx])
             y[dataloader_idx] = torch.cat(y[dataloader_idx])
             y_pred = logits[dataloader_idx].argmax(dim=-1)
-            metric = f1_score(
-                y[dataloader_idx].cpu().numpy(), y_pred.cpu().numpy(), average="macro"
+            # metric = f1_score(
+            #     y[dataloader_idx].cpu().numpy(), y_pred.cpu().numpy(), average="macro"
+            # )
+            metric = (
+                (y[dataloader_idx] == y_pred).float().mean().item()
             )
             save_epoch = (
                 self.current_epoch + 1
