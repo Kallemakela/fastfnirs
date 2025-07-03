@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import mne
 from mne_nirs.signal_enhancement import short_channel_regression
-from itertools import compress
+from fastfnirs.preprocessing import apply_sci
 import warnings
 
 
@@ -169,26 +169,14 @@ def process_raw_od(
     remove_short=None,
     verbose=False,
 ) -> mne.io.Raw:
-    
+
     if short_ch_regression is not None:
         raw = short_channel_regression(raw, max_dist=short_ch_regression)
 
     if remove_short is not None:
         raw = remove_short_channels(raw, min_length=remove_short)
 
-    with np.errstate(
-        invalid="ignore"
-    ):  # some channels have all zeros, they will be eliminated
-        sci = mne.preprocessing.nirs.scalp_coupling_index(raw)
-    below_threshold = np.isnan(sci) | (sci <= sci_threshold)
-    raw.info["bads"] = list(
-        compress(raw.ch_names, below_threshold)
-    )
-    elim_ratio = np.sum(below_threshold) / len(below_threshold)
-    if elim_ratio > 0.5:
-        print(f"Warning: {elim_ratio:.2f} channels eliminated due to low SCI")
-    if verbose:
-        print(f'{len(raw.info["bads"])}/{len(raw.ch_names)} channels marked as bad')
+    raw = apply_sci(raw, sci_threshold)
 
     if ch_interpolation == "interpolate_average_nearest":
         interpolate_bads_nirs(raw, method="average_nearest")
