@@ -109,9 +109,9 @@ class BrainDataset:
             for ei in range(len(subject_epochs)):
                 epoch = subject_epochs[ei]
                 # remove everything before 0, and 0
-                X[subject].append(
-                    epoch.copy().load_data().crop(tmin=0).get_data()[0, :, 1:]
-                )
+                with mne.utils.use_log_level("WARNING"):
+                    ed = epoch.copy().load_data().crop(tmin=0).get_data()[0, :, 1:]
+                X[subject].append(ed)
                 y[subject].append(eventid_to_y[epoch.events[0, 2]])
             X[subject], y[subject] = (
                 np.array(X[subject]),
@@ -209,7 +209,7 @@ class BrainDataset:
             test_subjects
         )
 
-    def filter_by_class_count(self, min_count=1):
+    def filter_by_class_count(self, min_count=1, verbose=0):
         """Removes subjects with less than min_count epochs for each class from X and y"""
         n_classes = len(np.unique(self.yc))
         subjects = list(self.X.keys())
@@ -217,7 +217,7 @@ class BrainDataset:
             y = self.y[subject]
             unique, counts = np.unique(y, return_counts=True)
             if np.any(counts < min_count) or len(unique) < n_classes:
-                if self.verbose > 0:
+                if verbose > 0:
                     print(
                         f"Removing {subject} due to class count {dict(zip(unique, counts))}"
                     )
