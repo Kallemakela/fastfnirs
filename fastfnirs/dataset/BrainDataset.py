@@ -152,7 +152,12 @@ class BrainDataset:
         )
         return self
 
-    def downsample(self, T_new=60, **kwargs):
+    def downsample(self, T_new=None, sfreq_new=None, **kwargs):
+
+        if sfreq_new is not None:
+            T = self.Xc.shape[-1]
+            T_new = np.round(T / (self.sfreq / sfreq_new)).astype(int)
+
         for sub in self.X.keys():
             T = self.X[sub].shape[-1]
             l = T / T_new
