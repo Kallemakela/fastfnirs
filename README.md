@@ -114,7 +114,7 @@ plot_evoked(epochs_dict, conditions=list(event_mapping.keys()))
 
 
     
-![png](fnirs_tapping_4_0.png)
+![png](fig/fnirs_tapping_4_0.png)
     
 
 ```python
